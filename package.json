@@ -19,7 +19,7 @@
     "express",
     "typescript"
   ],
-  "author": "",
+  "author": "Hariharan D V",
   "license": "MIT",
   "dependencies": {
     "@types/ws": "^8.18.1",

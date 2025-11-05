@@ -55,7 +55,28 @@ NODE_ENV=development
 
 ## Deployment
 
-Deployed on Vercel. The API is serverless and scales automatically.
+This backend is set up for two production modes:
+
+1) Vercel (serverless) — recommended for the hosted deployment
+
+- The Express app is exported for the Vercel runtime via `api/index.ts`.
+- `vercel.json` routes all requests to this function so existing routes like `/api/game/*` and `/api/board/*` work as-is.
+
+Monorepo note: If deploying from the repository root, set the Vercel Project “Root Directory” to `server/`.
+
+No custom build command is required for the function, but you can keep `npm install` as the Install Command.
+
+2) Long-running Node server (Render/Fly/Railway/VM)
+
+- Build: `npm run build` (outputs to `dist/`)
+- Start: `npm start` (runs `node dist/server.js`)
+
+Environment variables:
+
+```
+PORT=5000
+NODE_ENV=production
+```
 
 ## License
 
