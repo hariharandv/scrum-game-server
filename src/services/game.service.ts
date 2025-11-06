@@ -8,9 +8,14 @@ import { GameState, Card, ScrumMasterState, Player } from '../types/game';
 
 // Helper function to find a card by ID across all columns
 function findCardById(cardId: string, gameState: GameState): Card | null {
-  for (const cards of Object.values(gameState.boardState.columns) as Card[][]) {
-    const card = cards.find((c: Card) => c.id === cardId);
-    if (card) return card;
+  for (const columnState of Object.values(gameState.boardState.columns)) {
+    // Check slots
+    const cardInSlots = columnState.slots.find((c: Card) => c.id === cardId);
+    if (cardInSlots) return cardInSlots;
+
+    // Check queue
+    const cardInQueue = columnState.queue.find((c: Card) => c.id === cardId);
+    if (cardInQueue) return cardInQueue;
   }
   return null;
 }
@@ -72,7 +77,7 @@ export const gameService = {
         }
       ];
       
-      session.gameState.boardState.columns.Funnel = sampleCards;
+      session.gameState.boardState.columns.Funnel.slots = sampleCards;
       
       return {
         success: true,
@@ -152,6 +157,27 @@ export const gameService = {
     }
   },
 
+  advanceTurn: async (gameId: string) => {
+    try {
+      const success = GameStateStore.advancePlayerTurn(gameId);
+      if (!success) {
+        return { success: false, message: 'Could not advance turn' };
+      }
+
+      const session = GameStateStore.getGame(gameId);
+      return {
+        success: true,
+        newTurn: session?.gameState.boardState.currentTurn,
+        message: 'Turn advanced successfully'
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to advance turn: ${error instanceof Error ? error.message : 'Unknown error'}`
+      };
+    }
+  },
+
   rollD6: async (gameId: string, cardId: string) => {
     try {
       // Get the game session
@@ -191,7 +217,8 @@ export const gameService = {
         fromColumn: card.currentColumn,
         toColumn: rollResult.destinationColumn,
         rollResult,
-        scrumMasterState: gameState.scrumMasterState
+        scrumMasterState: gameState.scrumMasterState,
+        gameState
       };
 
       const movementResult = BoardService.moveCard(movementRequest);
@@ -223,11 +250,14 @@ export const gameService = {
         });
       }
 
+      // Advance to next player's turn
+      GameStateStore.advancePlayerTurn(gameId);
+
       return {
         success: true,
         rollResult,
         movementResult,
-        message: 'D6 roll completed successfully'
+        message: `Dice rolled: ${rollResult.rollValue}. ${rollResult.effectDescription}`
       };
     } catch (error) {
       return {

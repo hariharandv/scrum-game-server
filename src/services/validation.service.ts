@@ -69,7 +69,8 @@ export class ValidationService {
       return { isValid: true, message: 'Column has unlimited capacity' };
     }
 
-    const cardsInColumn = gameState.boardState.columns[column] || [];
+    const columnState = gameState.boardState.columns[column];
+    const cardsInColumn = [...columnState.slots, ...columnState.queue];
     const currentCapacity = cardsInColumn.reduce((sum: number, c: Card) => sum + c.effort, 0);
     const newCapacity = currentCapacity + card.effort;
 
@@ -105,11 +106,13 @@ export class ValidationService {
    */
   static validateSprintPlanning(cardIds: string[], gameState: GameState): ValidationResult {
     const sprintBacklogCapacity = this.COLUMN_CAPACITIES.SprintBacklog;
-    const currentSprintCards = gameState.boardState.columns.SprintBacklog || [];
+    const sprintBacklogState = gameState.boardState.columns.SprintBacklog;
+    const currentSprintCards = [...sprintBacklogState.slots, ...sprintBacklogState.queue];
     const currentCapacity = currentSprintCards.reduce((sum: number, c: Card) => sum + c.effort, 0);
 
     // Find the requested cards
-    const requestedCards = gameState.boardState.columns.ProductBacklog?.filter((card: Card) =>
+    const productBacklogState = gameState.boardState.columns.ProductBacklog;
+    const requestedCards = [...productBacklogState.slots, ...productBacklogState.queue].filter((card: Card) =>
       cardIds.includes(card.id)
     ) || [];
 
@@ -164,7 +167,8 @@ export class ValidationService {
       return false;
     }
 
-    const cardsInColumn = gameState.boardState.columns[column] || [];
+    const columnState = gameState.boardState.columns[column];
+    const cardsInColumn = [...columnState.slots, ...columnState.queue];
     const currentCapacity = cardsInColumn.reduce((sum: number, c: Card) => sum + c.effort, 0);
 
     return currentCapacity >= maxCapacity;
@@ -180,7 +184,8 @@ export class ValidationService {
       return Infinity;
     }
 
-    const cardsInColumn = gameState.boardState.columns[column] || [];
+    const columnState = gameState.boardState.columns[column];
+    const cardsInColumn = [...columnState.slots, ...columnState.queue];
     const currentCapacity = cardsInColumn.reduce((sum: number, c: Card) => sum + c.effort, 0);
 
     return Math.max(0, maxCapacity - currentCapacity);
@@ -191,8 +196,9 @@ export class ValidationService {
    */
   static validateCardExists(cardId: string, gameState: GameState): ValidationResult {
     // Search all columns for the card
-    for (const column of Object.values(gameState.boardState.columns) as Card[][]) {
-      const card = column.find((c: Card) => c.id === cardId);
+    for (const [columnName, columnState] of Object.entries(gameState.boardState.columns)) {
+      const allCards = [...columnState.slots, ...columnState.queue];
+      const card = allCards.find((c: Card) => c.id === cardId);
       if (card) {
         return {
           isValid: true,

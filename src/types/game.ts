@@ -63,13 +63,20 @@ export const GAME_PHASES: GamePhase[] = [
 ];
 
 export interface BoardState {
-  columns: Record<BoardColumn, Card[]>;
+  columns: Record<BoardColumn, ColumnState>;
   currentTurn: number;
   currentPhase: GamePhase;
   teamCapacity: number;
   usedCapacity: number;
   allocations: Record<CardEffort, number>;
   metrics: GameMetrics;
+  currentPlayerTurn: PlayerRole;
+}
+
+export interface ColumnState {
+  slots: Card[]; // Active working cards (limited by WIP)
+  queue: Card[]; // Waiting cards
+  wipLimit: number; // Maximum cards that can be in slots
 }
 
 export interface GameState {

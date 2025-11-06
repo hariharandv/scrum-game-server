@@ -8,6 +8,7 @@ router.post('/start', gameController.startGame);
 router.get('/state', gameController.getGameState);
 router.post('/phase', gameController.advancePhase);
 router.post('/roll-d6', gameController.rollD6);
+router.post('/turn', gameController.advanceTurn);
 router.get('/metrics', gameController.getMetrics);
 
 export default router;

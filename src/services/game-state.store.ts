@@ -1,5 +1,5 @@
 // Game state store - In-memory persistence for MVP
-import { GameState, Card, BoardColumn, Player, ScrumMasterState } from '../types/game';
+import { GameState, Card, BoardColumn, Player, PlayerRole, ScrumMasterState } from '../types/game';
 
 export interface GameSession {
   id: string;
@@ -19,19 +19,19 @@ export class GameStateStore {
   static createGame(players: Player[]): GameSession {
     const sessionId = `game-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-    // Initialize empty game state
+    // Initialize empty game state with WIP limits
     const gameState: GameState = {
       id: sessionId,
       boardState: {
         columns: {
-          Funnel: [],
-          ProductBacklog: [],
-          SprintBacklog: [],
-          Implementation: [],
-          Integration: [],
-          Testing: [],
-          PreDeployment: [],
-          Production: []
+          Funnel: { slots: [], queue: [], wipLimit: 999 }, // Unlimited for intake
+          ProductBacklog: { slots: [], queue: [], wipLimit: 1 }, // 1 prioritized item
+          SprintBacklog: { slots: [], queue: [], wipLimit: 3 }, // 3 committed items
+          Implementation: { slots: [], queue: [], wipLimit: 3 }, // 3 active development
+          Integration: { slots: [], queue: [], wipLimit: 1 }, // 1 integration testing
+          Testing: { slots: [], queue: [], wipLimit: 2 }, // 2 QA validation
+          PreDeployment: { slots: [], queue: [], wipLimit: 6 }, // 6 release preparation
+          Production: { slots: [], queue: [], wipLimit: 999 } // Unlimited completed work
         },
         currentTurn: 1,
         currentPhase: 'SprintPlanning',
@@ -45,7 +45,8 @@ export class GameStateStore {
           cumulativeFlowData: [],
           revertEvents: [],
           tokenUsageHistory: []
-        }
+        },
+        currentPlayerTurn: 'ProductOwner' // Start with PO in Sprint Planning
       },
       players: players,
       scrumMasterState: {
@@ -96,34 +97,63 @@ export class GameStateStore {
   }
 
   /**
-   * Add a card to a specific column
+   * Add a card to a specific column (to queue by default)
    */
   static addCard(gameId: string, column: BoardColumn, card: Card): boolean {
     const session = this.sessions.get(gameId);
     if (!session) return false;
 
-    session.gameState.boardState.columns[column].push(card);
+    // Try to add to slots first, then queue
+    const columnState = session.gameState.boardState.columns[column];
+    if (columnState.slots.length < columnState.wipLimit) {
+      columnState.slots.push(card);
+    } else {
+      columnState.queue.push(card);
+    }
     session.updatedAt = new Date();
     return true;
   }
 
   /**
-   * Move a card between columns
+   * Move a card between columns (handles slots and queues)
    */
   static moveCard(gameId: string, cardId: string, fromColumn: BoardColumn, toColumn: BoardColumn): boolean {
     const session = this.sessions.get(gameId);
     if (!session) return false;
 
-    const fromCards = session.gameState.boardState.columns[fromColumn];
-    const cardIndex = fromCards.findIndex(card => card.id === cardId);
+    const fromColumnState = session.gameState.boardState.columns[fromColumn];
+    const toColumnState = session.gameState.boardState.columns[toColumn];
+
+    // Find card in slots or queue
+    let card: Card | undefined;
+    let cardIndex = fromColumnState.slots.findIndex(c => c.id === cardId);
+    let isInSlots = true;
+
+    if (cardIndex === -1) {
+      cardIndex = fromColumnState.queue.findIndex(c => c.id === cardId);
+      isInSlots = false;
+    }
 
     if (cardIndex === -1) return false;
 
-    const card = fromCards.splice(cardIndex, 1)[0];
+    // Remove card from source
+    if (isInSlots) {
+      card = fromColumnState.slots.splice(cardIndex, 1)[0];
+    } else {
+      card = fromColumnState.queue.splice(cardIndex, 1)[0];
+    }
+
+    // Update card status
     card.currentColumn = toColumn;
     card.status = toColumn;
 
-    session.gameState.boardState.columns[toColumn].push(card);
+    // Add to destination (try slots first, then queue)
+    if (toColumnState.slots.length < toColumnState.wipLimit) {
+      toColumnState.slots.push(card);
+    } else {
+      toColumnState.queue.push(card);
+    }
+
     session.updatedAt = new Date();
     return true;
   }
@@ -135,10 +165,19 @@ export class GameStateStore {
     const session = this.sessions.get(gameId);
     if (!session) return false;
 
-    for (const column of Object.values(session.gameState.boardState.columns)) {
-      const cardIndex = column.findIndex(card => card.id === cardId);
+    for (const columnState of Object.values(session.gameState.boardState.columns)) {
+      // Check slots
+      let cardIndex = columnState.slots.findIndex((card: Card) => card.id === cardId);
       if (cardIndex !== -1) {
-        column.splice(cardIndex, 1);
+        columnState.slots.splice(cardIndex, 1);
+        session.updatedAt = new Date();
+        return true;
+      }
+
+      // Check queue
+      cardIndex = columnState.queue.findIndex((card: Card) => card.id === cardId);
+      if (cardIndex !== -1) {
+        columnState.queue.splice(cardIndex, 1);
         session.updatedAt = new Date();
         return true;
       }
@@ -159,13 +198,27 @@ export class GameStateStore {
   }
 
   /**
-   * Advance to next turn
+   * Advance to next player turn within the current phase
    */
-  static advanceTurn(gameId: string): boolean {
+  static advancePlayerTurn(gameId: string): boolean {
     const session = this.sessions.get(gameId);
     if (!session) return false;
 
-    session.gameState.boardState.currentTurn += 1;
+    const playerRoles: PlayerRole[] = [
+      'Stakeholder',
+      'ProductOwner', 
+      'ScrumMaster',
+      'Developer-Impl',
+      'Developer-Intg',
+      'QATester',
+      'ReleaseManager',
+      'Customer'
+    ];
+
+    const currentIndex = playerRoles.indexOf(session.gameState.currentPlayerTurn);
+    const nextIndex = (currentIndex + 1) % playerRoles.length;
+    
+    session.gameState.currentPlayerTurn = playerRoles[nextIndex];
     session.updatedAt = new Date();
     return true;
   }

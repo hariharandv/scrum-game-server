@@ -63,7 +63,8 @@ export class MetricsService {
 
     // Calculate completed effort for each turn
     for (let turn = 1; turn <= currentTurn; turn++) {
-      const completedCards = gameState.boardState.columns.Production?.filter(card =>
+      const productionColumn = gameState.boardState.columns.Production;
+      const completedCards = [...productionColumn.slots, ...productionColumn.queue].filter(card =>
         card.cycleTime === turn
       ) || [];
 
@@ -78,8 +79,9 @@ export class MetricsService {
    * Calculate accumulated score (total completed effort)
    */
   private static calculateAccumulatedScore(gameState: GameState): number {
-    const completedCards = gameState.boardState.columns.Production || [];
-    return completedCards.reduce((sum, card) => sum + card.effort, 0);
+    const productionColumn = gameState.boardState.columns.Production;
+    const completedCards = [...productionColumn.slots, ...productionColumn.queue];
+    return completedCards.reduce((sum: number, card: Card) => sum + card.effort, 0);
   }
 
   /**
@@ -118,8 +120,8 @@ export class MetricsService {
       };
 
       // Count cards in each column at this turn (simplified - using current state)
-      Object.entries(gameState.boardState.columns).forEach(([column, cards]) => {
-        columnCounts[column as BoardColumn] = cards.length;
+      Object.entries(gameState.boardState.columns).forEach(([column, columnState]) => {
+        columnCounts[column as BoardColumn] = columnState.slots.length + columnState.queue.length;
       });
 
       const totalWIP = Object.values(columnCounts).reduce((sum, count) => sum + count, 0);
@@ -196,7 +198,9 @@ export class MetricsService {
    * Get all cards from all columns
    */
   private static getAllCards(gameState: GameState): Card[] {
-    return Object.values(gameState.boardState.columns).flat();
+    return Object.values(gameState.boardState.columns).flatMap(columnState =>
+      [...columnState.slots, ...columnState.queue]
+    );
   }
 
   /**

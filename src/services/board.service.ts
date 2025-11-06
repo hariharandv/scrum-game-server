@@ -1,5 +1,20 @@
 // Board service - Manages card movement and column transitions
-import { Card, BoardColumn, ScrumMasterState, D6RollResult } from '../types/game';
+import { Card, BoardColumn, ScrumMasterState, D6RollResult, GameState } from '../types/game';
+import { GameStateStore } from './game-state.store';
+
+// Helper function to find a card by ID across all columns
+function findCardById(cardId: string, gameState: GameState): Card | null {
+  for (const columnState of Object.values(gameState.boardState.columns)) {
+    // Check slots
+    const cardInSlots = columnState.slots.find((c: Card) => c.id === cardId);
+    if (cardInSlots) return cardInSlots;
+
+    // Check queue
+    const cardInQueue = columnState.queue.find((c: Card) => c.id === cardId);
+    if (cardInQueue) return cardInQueue;
+  }
+  return null;
+}
 
 export interface CardMovementRequest {
   card: Card;
@@ -7,6 +22,7 @@ export interface CardMovementRequest {
   toColumn: BoardColumn;
   rollResult: D6RollResult;
   scrumMasterState: ScrumMasterState;
+  gameState: GameState;
 }
 
 export interface CardMovementResult {
@@ -35,7 +51,7 @@ export class BoardService {
    * Move a card between columns based on D6 roll result
    */
   static moveCard(request: CardMovementRequest): CardMovementResult {
-    const { card, fromColumn, toColumn, rollResult, scrumMasterState } = request;
+    const { card, fromColumn, toColumn, rollResult, scrumMasterState, gameState } = request;
 
     // Validate the movement
     if (!this.isValidMovement(fromColumn, toColumn)) {
@@ -49,7 +65,7 @@ export class BoardService {
     }
 
     // Check capacity constraints
-    if (!this.canAcceptCard(toColumn, card)) {
+    if (!this.canAcceptCard(toColumn, gameState)) {
       return {
         success: false,
         card,
@@ -127,10 +143,10 @@ export class BoardService {
   /**
    * Check if a column can accept a new card based on capacity rules
    */
-  private static canAcceptCard(column: BoardColumn, card: Card): boolean {
-    // TODO: Implement capacity validation based on game rules
-    // For now, allow all movements
-    return true;
+  private static canAcceptCard(toColumn: BoardColumn, gameState: GameState): boolean {
+    const columnState = gameState.boardState.columns[toColumn];
+    // Check if slots are available
+    return columnState.slots.length < columnState.wipLimit;
   }
 
   /**
@@ -218,5 +234,92 @@ export const boardService = {
   allocateCapacity: async (allocations: any) => {
     // TODO: Allocate capacity to features/TD
     return { allocations, success: true, message: 'Capacity allocated successfully' };
+  },
+
+  acceptCard: async (cardId: string) => {
+    try {
+      const gameSession = GameStateStore.getCurrentGame();
+      if (!gameSession) {
+        return { success: false, message: 'No active game found' };
+      }
+
+      const gameState = gameSession.gameState;
+      const card = findCardById(cardId, gameState);
+      if (!card) {
+        return { success: false, message: 'Card not found' };
+      }
+
+      if (card.currentColumn !== 'PreDeployment') {
+        return { success: false, message: 'Card must be in Pre-Deployment to be accepted' };
+      }
+
+      // Move card to Production
+      const moveSuccess = GameStateStore.moveCard(gameSession.id, cardId, 'PreDeployment', 'Production');
+      if (!moveSuccess) {
+        return { success: false, message: 'Failed to move card to Production' };
+      }
+
+      return { success: true, message: 'Card accepted and moved to Production' };
+    } catch (error) {
+      return { success: false, message: `Failed to accept card: ${error instanceof Error ? error.message : 'Unknown error'}` };
+    }
+  },
+
+  rejectCard: async (cardId: string) => {
+    try {
+      const gameSession = GameStateStore.getCurrentGame();
+      if (!gameSession) {
+        return { success: false, message: 'No active game found' };
+      }
+
+      const gameState = gameSession.gameState;
+      const card = findCardById(cardId, gameState);
+      if (!card) {
+        return { success: false, message: 'Card not found' };
+      }
+
+      if (card.currentColumn !== 'PreDeployment') {
+        return { success: false, message: 'Card must be in Pre-Deployment to be rejected' };
+      }
+
+      // Move card back to Product Backlog (D6=4 logic)
+      const moveSuccess = GameStateStore.moveCard(gameSession.id, cardId, 'PreDeployment', 'ProductBacklog');
+      if (!moveSuccess) {
+        return { success: false, message: 'Failed to move card back to Product Backlog' };
+      }
+
+      return { success: true, message: 'Card rejected and moved back to Product Backlog' };
+    } catch (error) {
+      return { success: false, message: `Failed to reject card: ${error instanceof Error ? error.message : 'Unknown error'}` };
+    }
+  },
+
+  useToken: async (cardId: string) => {
+    try {
+      const gameSession = GameStateStore.getCurrentGame();
+      if (!gameSession) {
+        return { success: false, message: 'No active game found' };
+      }
+
+      const gameState = gameSession.gameState;
+      const card = findCardById(cardId, gameState);
+      if (!card) {
+        return { success: false, message: 'Card not found' };
+      }
+
+      if (gameState.scrumMasterState.tokensAvailable <= 0) {
+        return { success: false, message: 'No tokens available' };
+      }
+
+      // Update ScrumMaster state
+      GameStateStore.updateScrumMasterState(gameSession.id, {
+        tokensAvailable: gameState.scrumMasterState.tokensAvailable - 1,
+        tokensUsed: gameState.scrumMasterState.tokensUsed + 1
+      });
+
+      return { success: true, message: 'Token used successfully' };
+    } catch (error) {
+      return { success: false, message: `Failed to use token: ${error instanceof Error ? error.message : 'Unknown error'}` };
+    }
   }
 };

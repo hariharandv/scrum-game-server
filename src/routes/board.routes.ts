@@ -8,5 +8,8 @@ router.get('/', boardController.getBoardState);
 router.post('/move-card', boardController.moveCard);
 router.post('/pull-to-sprint', boardController.pullToSprint);
 router.post('/allocate-capacity', boardController.allocateCapacity);
+router.post('/accept-card', boardController.acceptCard);
+router.post('/reject-card', boardController.rejectCard);
+router.post('/use-token', boardController.useToken);
 
 export default router;

@@ -52,6 +52,22 @@ export const gameController = {
     }
   },
 
+  advanceTurn: async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { gameId } = req.params;
+      const result = await gameService.advanceTurn(gameId);
+      if (result.success) {
+        // Get updated game state
+        const gameStateResult = await gameService.getGameState(gameId);
+        res.json({ success: true, data: result });
+      } else {
+        res.status(400).json({ success: false, message: result.message });
+      }
+    } catch (error) {
+      next(error);
+    }
+  },
+
   rollD6: async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { gameId } = req.params;

@@ -109,5 +109,98 @@ export const boardController = {
       console.error('Error allocating capacity:', error);
       next(error);
     }
+  },
+
+  acceptCard: async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { cardId } = req.body;
+      
+      if (!cardId) {
+        res.status(400).json({ 
+          success: false, 
+          message: 'Missing required field: cardId' 
+        });
+        return;
+      }
+      
+      const result = await boardService.acceptCard(cardId);
+      
+      if (result.success) {
+        // Get updated game state
+        const gameStateResult = await gameService.getCurrentGame();
+        if (gameStateResult.success) {
+          res.json({ success: true, data: gameStateResult.gameState });
+        } else {
+          res.json({ success: true, data: result });
+        }
+      } else {
+        res.status(400).json({ success: false, message: result.message || 'Failed to accept card' });
+      }
+    } catch (error) {
+      console.error('Error accepting card:', error);
+      next(error);
+    }
+  },
+
+  rejectCard: async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { cardId } = req.body;
+      
+      if (!cardId) {
+        res.status(400).json({ 
+          success: false, 
+          message: 'Missing required field: cardId' 
+        });
+        return;
+      }
+      
+      const result = await boardService.rejectCard(cardId);
+      
+      if (result.success) {
+        // Get updated game state
+        const gameStateResult = await gameService.getCurrentGame();
+        if (gameStateResult.success) {
+          res.json({ success: true, data: gameStateResult.gameState });
+        } else {
+          res.json({ success: true, data: result });
+        }
+      } else {
+        res.status(400).json({ success: false, message: result.message || 'Failed to reject card' });
+      }
+    } catch (error) {
+      console.error('Error rejecting card:', error);
+      next(error);
+    }
+  },
+
+  useToken: async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { cardId } = req.body;
+      
+      if (!cardId) {
+        res.status(400).json({ 
+          success: false, 
+          message: 'Missing required field: cardId' 
+        });
+        return;
+      }
+      
+      const result = await boardService.useToken(cardId);
+      
+      if (result.success) {
+        // Get updated game state
+        const gameStateResult = await gameService.getCurrentGame();
+        if (gameStateResult.success) {
+          res.json({ success: true, data: gameStateResult.gameState });
+        } else {
+          res.json({ success: true, data: result });
+        }
+      } else {
+        res.status(400).json({ success: false, message: result.message || 'Failed to use token' });
+      }
+    } catch (error) {
+      console.error('Error using token:', error);
+      next(error);
+    }
   }
 };
