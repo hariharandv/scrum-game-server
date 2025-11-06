@@ -203,6 +203,14 @@ export interface CardMovement {
   causesRevert: boolean;
 }
 
+export interface D6RollResult {
+  rollValue: DiceValue;
+  destinationColumn: BoardColumn;
+  cardMovement: CardMovement;
+  effectDescription: string;
+  canMitigation: boolean;
+}
+
 // ============================================================================
 // ACTION TYPES
 // ============================================================================

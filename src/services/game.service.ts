@@ -168,7 +168,7 @@ export const gameService = {
       return {
         success: true,
         newTurn: session?.gameState.boardState.currentTurn,
-        message: 'Turn advanced successfully'
+        newPlayer: session?.gameState.currentPlayerTurn
       };
     } catch (error) {
       return {
